@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Scraper - No CORS Issues</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #007bff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #343a40;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px dashed #dee2e6;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-input {
+            margin: 20px 0;
+            padding: 15px;
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            background: #e7f3ff;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input:hover {
+            background: #d1e7ff;
+            border-color: #0056b3;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: var(--dark);
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+            border-left: 5px solid var(--primary);
+        }
+
+        .section h3 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .log-container {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+
+        .log-success { color: #68D391; }
+        .log-error { color: #FC8181; }
+        .log-warning { color: #F6E05E; }
+        .log-info { color: #63B3ED; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .settings-panel {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .setting-item label {
+            font-weight: 600;
+            color: #856404;
+        }
+
+        .setting-item input, .setting-item select {
+            padding: 8px 12px;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            background: white;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* CORS Status Styles */
+        .status-running {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 2px solid #c3e6cb;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .status-stopped {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 2px solid #f5c6cb;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .status-error {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 2px solid #ffeaa7;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .status-unknown {
+            background: #e2e3e5;
+            color: #383d41;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 2px solid #d6d8db;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .server-instructions {
+            background: #e7f3ff;
+            border: 2px solid #b3d9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .server-instructions h4 {
+            color: #0066cc;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .server-instructions code {
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 1px solid #dee2e6;
+        }
+
+        .server-instructions ol, .server-instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .server-instructions li {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📊 Journal Scraper</h1>
+        <p>Extract & Scrape Journal Data - No CORS Issues!</p>
+    </div>
+
+    <div class="content">
+        <!-- Server Status Section -->
+        <div class="section">
+            <h3>🔧 Server Status</h3>
+            <div id="corsStatus" class="status-unknown">
+                ⚪ <strong>CORS Server: Checking...</strong>
+            </div>
+
+            <div class="server-instructions" id="serverInstructions">
+                <h4>💡 How to Start CORS Server:</h4>
+                <p><strong>Method 1 - PowerShell (Recommended):</strong></p>
+                <ol>
+                    <li>Open PowerShell as Administrator</li>
+                    <li>Run: <code>cd "C:\web\excel\journal-scraper\server"</code></li>
+                    <li>Run: <code>npm start</code></li>
+                </ol>
+
+                <p><strong>Method 2 - Batch File:</strong></p>
+                <ul>
+                    <li>Double-click <code>start-cors-server.bat</code> in project folder</li>
+                </ul>
+
+                <p><strong>Expected Output:</strong> <code>Server running on http://localhost:3000</code></p>
+                <p><strong>Note:</strong> Keep the server window open while scraping</p>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="section">
+            <h3>📁 1. Upload Excel File</h3>
+            <div class="upload-section">
+                <input type="file" id="fileInput" accept=".xlsx, .xls" class="file-input">
+                <div class="controls">
+                    <button onclick="extractHyperlinks()" id="extractBtn" class="btn btn-primary" disabled>Extract Hyperlinks</button>
+                    <button onclick="clearAll()" class="btn btn-warning">Clear All</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultSection" class="section hidden">
+            <h3>🔗 2. Extraction Results</h3>
+            <div id="summary"></div>
+        </div>
+
+        <!-- Scraping Settings -->
+        <div id="scrapingSection" class="section hidden">
+            <h3>⚙️ 3. Scraping Settings</h3>
+            <div class="settings-panel">
+                <div class="setting-group">
+                    <div class="setting-item">
+                        <label for="maxUrls">Max URLs to Scrape:</label>
+                        <input type="number" id="maxUrls" min="1" max="1000" value="50">
+                    </div>
+                    <div class="setting-item">
+                        <label for="delayMs">Delay (milliseconds):</label>
+                        <input type="number" id="delayMs" min="1000" max="10000" value="2000">
+                    </div>
+                    <div class="setting-item">
+                        <label for="batchSize">Batch Size:</label>
+                        <input type="number" id="batchSize" min="1" max="5" value="2">
+                    </div>
+                </div>
+                <div class="controls">
+                    <button onclick="applySettings()" class="btn btn-primary">Apply Settings</button>
+                    <button onclick="startScraping()" id="scrapeBtn" class="btn btn-success">Start Scraping</button>
+                    <button onclick="stopScraping()" id="stopBtn" class="btn btn-danger" disabled>Stop Scraping</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scraping Progress -->
+        <div id="progressSection" class="section hidden">
+            <h3>🕷️ 4. Scraping Progress</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+            </div>
+
+            <div class="stats" id="scrapingStats"></div>
+
+            <div class="log-container" id="scrapingLog"></div>
+        </div>
+
+        <!-- Results Display -->
+        <div id="resultsSection" class="section hidden">
+            <h3>📊 5. Final Results</h3>
+            <div class="controls">
+                <button onclick="downloadJSON()" id="downloadJsonBtn" class="btn btn-success" disabled>Download JSON</button>
+                <button onclick="downloadCSV()" id="downloadCsvBtn" class="btn btn-success" disabled>Download CSV</button>
+                <button onclick="downloadExcel()" id="downloadExcelBtn" class="btn btn-success" disabled>Download Excel</button>
+            </div>
+            <pre id="finalResults" class="hidden"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global variables
+    let extractedData = null;
+    let scrapedData = null;
+    let isScraping = false;
+    let scrapingController = null;
+    let corsServerStatus = 'unknown';
+
+    // Scraping settings
+    const scrapingSettings = {
+        maxUrls: 50,
+        delayMs: 2000,
+        batchSize: 2,
+        proxyUrl: 'http://localhost:3000/proxy?url='
+    };
+
+    // Function untuk check CORS server status
+    async function checkCORSStatus() {
+        try {
+            const response = await fetch('http://localhost:3000/health', {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+
+            if (response.ok) {
+                corsServerStatus = 'running';
+                return true;
+            } else {
+                corsServerStatus = 'error';
+                return false;
+            }
+        } catch (error) {
+            corsServerStatus = 'stopped';
+            return false;
+        }
+    }
+
+    // Function untuk update status display
+    function updateCORSStatusDisplay() {
+        const statusElement = document.getElementById('corsStatus');
+        if (!statusElement) return;
+
+        switch(corsServerStatus) {
+            case 'running':
+                statusElement.innerHTML = '🟢 <strong>CORS Server: Running</strong> - Ready for scraping!';
+                statusElement.className = 'status-running';
+                break;
+            case 'stopped':
+                statusElement.innerHTML = '🔴 <strong>CORS Server: Stopped</strong> - Please start the server';
+                statusElement.className = 'status-stopped';
+                break;
+            case 'error':
+                statusElement.innerHTML = '🟡 <strong>CORS Server: Error</strong> - Check server connection';
+                statusElement.className = 'status-error';
+                break;
+            default:
+                statusElement.innerHTML = '⚪ <strong>CORS Server: Checking...</strong>';
+                statusElement.className = 'status-unknown';
+        }
+    }
+
+    // Auto-check status setiap 5 detik
+    async function startCORSStatusMonitor() {
+        await checkCORSStatus();
+        updateCORSStatusDisplay();
+
+        // Update setiap 5 detik
+        setInterval(async () => {
+            await checkCORSStatus();
+            updateCORSStatusDisplay();
+        }, 5000);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Enable extract button when file is selected
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            document.getElementById('extractBtn').disabled = !e.target.files.length;
+        });
+
+        // Set default values
+        document.getElementById('maxUrls').value = scrapingSettings.maxUrls;
+        document.getElementById('delayMs').value = scrapingSettings.delayMs;
+        document.getElementById('batchSize').value = scrapingSettings.batchSize;
+
+        // Start CORS status monitoring
+        startCORSStatusMonitor();
+
+        logToConsole('🚀 Journal Scraper Ready!', 'info');
+        logToConsole('💡 Upload an Excel file to get started', 'info');
+        logToConsole('🔧 Checking CORS server status...', 'info');
+    });
+
+    function extractHyperlinks() {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('❌ Please select an Excel file first!');
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                logToConsole('📖 Reading Excel file...', 'info');
+
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                const result = {
+                    fileName: file.name,
+                    extractedAt: new Date().toISOString(),
+                    totalSheets: workbook.SheetNames.length,
+                    totalHyperlinks: 0,
+                    sheets: {}
+                };
+
+                // Process each sheet
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const sheetHyperlinks = [];
+
+                    for (const cellAddress in worksheet) {
+                        if (cellAddress[0] === '!') continue;
+
+                        const cell = worksheet[cellAddress];
+                        if (cell && cell.l && cell.l.Target) {
+                            sheetHyperlinks.push({
+                                cell: cellAddress,
+                                displayText: cell.v || '',
+                                url: cell.l.Target,
+                                tooltip: cell.l.Tooltip || ''
+                            });
+                        }
+                    }
+
+                    if (sheetHyperlinks.length > 0) {
+                        result.sheets[sheetName] = {
+                            sheetName: sheetName,
+                            totalHyperlinks: sheetHyperlinks.length,
+                            hyperlinks: sheetHyperlinks
+                        };
+                        result.totalHyperlinks += sheetHyperlinks.length;
+                    }
+                });
+
+                extractedData = result;
+                displayResults(result);
+
+                logToConsole(`✅ Extracted ${result.totalHyperlinks} hyperlinks from ${result.totalSheets} sheets`, 'success');
+
+            } catch (error) {
+                logToConsole(`❌ Error reading file: ${error.message}`, 'error');
+                alert('Error reading Excel file: ' + error.message);
+            }
+        };
+
+        reader.onerror = function() {
+            logToConsole('❌ Error reading file!', 'error');
+            alert('Error reading file!');
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    function displayResults(data) {
+        // Show sections
+        document.getElementById('resultSection').classList.remove('hidden');
+        document.getElementById('scrapingSection').classList.remove('hidden');
+
+        // Update summary
+        const summaryDiv = document.getElementById('summary');
+        summaryDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number">${data.totalSheets}</div>
+                        <div class="stat-label">Total Sheets</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.totalHyperlinks}</div>
+                        <div class="stat-label">Total Hyperlinks</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${Object.keys(data.sheets).length}</div>
+                        <div class="stat-label">Sheets with Links</div>
+                    </div>
+                </div>
+            `;
+
+        // Update max URLs
+        document.getElementById('maxUrls').max = data.totalHyperlinks;
+        document.getElementById('maxUrls').value = Math.min(scrapingSettings.maxUrls, data.totalHyperlinks);
+
+        // Scroll to results
+        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function applySettings() {
+        scrapingSettings.maxUrls = parseInt(document.getElementById('maxUrls').value);
+        scrapingSettings.delayMs = parseInt(document.getElementById('delayMs').value);
+        scrapingSettings.batchSize = parseInt(document.getElementById('batchSize').value);
+
+        logToConsole(`⚙️ Settings applied: ${scrapingSettings.maxUrls} URLs, ${scrapingSettings.delayMs}ms delay, ${scrapingSettings.batchSize} parallel`, 'info');
+    }
+
+    async function startScraping() {
+        if (!extractedData || isScraping) return;
+
+        // Check CORS status first
+        logToConsole('🔧 Checking CORS server status...', 'warning');
+        const corsStatus = await checkCORSStatus();
+
+        if (!corsStatus) {
+            logToConsole(`❌ CORS Server is not running!`, 'error');
+            logToConsole('💡 Please start the CORS server first', 'warning');
+            logToConsole('   Run: cd server && npm start', 'info');
+            return;
+        }
+
+        logToConsole('✅ CORS Server is running!', 'success');
+
+        // Test proxy connection first
+        logToConsole('🧪 Testing proxy connection...', 'warning');
+        const testResult = await testProxy();
+
+        if (!testResult.success) {
+            logToConsole(`❌ Proxy test failed: ${testResult.error}`, 'error');
+            logToConsole('💡 Make sure the local proxy server is running!', 'warning');
+            return;
+        }
+
+        logToConsole('✅ Proxy connection successful!', 'success');
+
+        isScraping = true;
+        scrapingController = new AbortController();
+
+        // Update UI
+        document.getElementById('scrapeBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        document.getElementById('progressSection').classList.remove('hidden');
+        document.getElementById('progressSection').scrollIntoView({ behavior: 'smooth' });
+
+        // Collect URLs
+        let allUrls = [];
+        for (const sheetName in extractedData.sheets) {
+            allUrls = allUrls.concat(extractedData.sheets[sheetName].hyperlinks.map(link => ({
+                ...link,
+                sheet: sheetName
+            })));
+        }
+
+        const urlsToScrape = allUrls.slice(0, scrapingSettings.maxUrls);
+
+        scrapedData = {
+            fileName: extractedData.fileName,
+            scrapedAt: new Date().toISOString(),
+            totalUrls: urlsToScrape.length,
+            successCount: 0,
+            errorCount: 0,
+            settings: { ...scrapingSettings },
+            journals: []
+        };
+
+        logToConsole(`🚀 Starting to scrape ${urlsToScrape.length} URLs...`, 'info');
+
+        // Process in batches
+        for (let i = 0; i < urlsToScrape.length; i += scrapingSettings.batchSize) {
+            if (!isScraping) break;
+
+            const batch = urlsToScrape.slice(i, i + scrapingSettings.batchSize);
+            const batchNumber = Math.floor(i / scrapingSettings.batchSize) + 1;
+            const totalBatches = Math.ceil(urlsToScrape.length / scrapingSettings.batchSize);
+
+            logToConsole(`📦 Batch ${batchNumber}/${totalBatches} (${batch.length} URLs)`, 'warning');
+
+            // Process batch in parallel
+            const batchPromises = batch.map(async (urlInfo, batchIndex) => {
+                const globalIndex = i + batchIndex;
+                await processUrl(urlInfo, globalIndex, urlsToScrape.length);
+            });
+
+            try {
+                await Promise.all(batchPromises);
+            } catch (error) {
+                if (error.name === 'AbortError') break;
+            }
+
+            // Delay between batches
+            if (isScraping && i + scrapingSettings.batchSize < urlsToScrape.length) {
+                logToConsole(`⏳ Waiting ${scrapingSettings.delayMs}ms...`, 'info');
+                await new Promise(resolve => setTimeout(resolve, scrapingSettings.delayMs));
+            }
+        }
+
+        finishScraping();
+    }
+
+    async function processUrl(urlInfo, index, total) {
+        const progress = ((index + 1) / total) * 100;
+        updateProgress(progress);
+
+        logToConsole(`${index + 1}/${total}: ${urlInfo.displayText}`, 'info');
+
+        try {
+            const journalData = await scrapeJournalData(urlInfo.url);
+
+            if (journalData.status === 'success') {
+                scrapedData.successCount++;
+                logToConsole(`✅ ${index + 1}: ${journalData.journalTitle || 'No title'}`, 'success');
+            } else {
+                scrapedData.errorCount++;
+                logToConsole(`❌ ${index + 1}: ${journalData.error}`, 'error');
+            }
+
+            scrapedData.journals.push({
+                ...urlInfo,
+                ...journalData
+            });
+
+        } catch (error) {
+            scrapedData.errorCount++;
+            logToConsole(`❌ ${index + 1}: ${error.message}`, 'error');
+
+            scrapedData.journals.push({
+                ...urlInfo,
+                status: 'error',
+                error: error.message,
+                scrapedAt: new Date().toISOString()
+            });
+        }
+
+        updateStats();
+    }
+
+    async function scrapeJournalData(url) {
+        try {
+            const targetUrl = scrapingSettings.proxyUrl + encodeURIComponent(url);
+
+            const response = await fetch(targetUrl, {
+                signal: scrapingController?.signal,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const html = await response.text();
+
+            // Parse HTML dan extract data
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            const journalData = {
+                journalTitle: '',
+                publisher: '',
+                issn: '',
+                journalQuartile: '',
+                hIndex: '',
+                sjr: '',
+                publicationLanguage: '',
+                countryOfPublisher: '',
+                reviewProcess: '',
+                processingTime: '',
+                apc: '',
+                openAccess: '',
+                journalOfficialWebsite: '',
+                scrapedAt: new Date().toISOString(),
+                status: 'success'
+            };
+
+            // Extract data dari table dengan exact matching
+            const rows = doc.querySelectorAll('table.table-bordered tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('th, td');
+                if (cells.length === 2) {
+                    const key = cells[0].textContent.trim().toLowerCase();
+                    const value = cells[1].textContent.trim();
+
+                    // Exact matching untuk hindari confusion
+                    if (key === 'journal title') {
+                        journalData.journalTitle = value;
+                    }
+                    else if (key === 'publisher') {
+                        journalData.publisher = value;
+                    }
+                    else if (key === 'issn') {
+                        journalData.issn = value;
+                    }
+                    else if (key === 'journal quartile') {
+                        journalData.journalQuartile = value;
+                    }
+                    else if (key === 'h-index') {
+                        journalData.hIndex = value;
+                    }
+                    else if (key === 'sjr') {
+                        journalData.sjr = value;
+                    }
+                    else if (key === 'publication language') {
+                        journalData.publicationLanguage = value;
+                    }
+                    else if (key === 'country of publisher') {
+                        journalData.countryOfPublisher = value;
+                    }
+                    else if (key === 'review process') {
+                        journalData.reviewProcess = value;
+                    }
+                    else if (key === 'processing time' || key === 'processing') {
+                        journalData.processingTime = value;
+                    }
+                    else if (key === 'apc') {
+                        journalData.apc = value;
+                    }
+                    else if (key === 'open access') {
+                        journalData.openAccess = value;
+                    }
+                }
+            });
+
+            // Extract official website
+            const websiteLink = doc.querySelector('a[target="_blank"]');
+            if (websiteLink && websiteLink.href) {
+                journalData.journalOfficialWebsite = websiteLink.href;
+            }
+
+            return journalData;
+
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+
+            return {
+                status: 'error',
+                error: error.message,
+                scrapedAt: new Date().toISOString()
+            };
+        }
+    }
+
+    async function testProxy() {
+        try {
+            const testUrl = scrapingSettings.proxyUrl + encodeURIComponent('https://noapc.com/journal.php?q=iatreia');
+            const response = await fetch(testUrl, {
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (!response.ok) {
+                return {
+                    success: false,
+                    error: `HTTP ${response.status}: ${response.statusText}`
+                };
+            }
+
+            return { success: true };
+        } catch (error) {
+            // Provide more specific error messages
+            let errorMsg = error.message;
+            if (error.name === 'AbortError') {
+                errorMsg = 'Request timeout - server might be slow or unresponsive';
+            } else if (error.message.includes('Failed to fetch')) {
+                errorMsg = 'Cannot connect to CORS server. Please make sure it\'s running on http://localhost:3000';
+            }
+
+            return {
+                success: false,
+                error: errorMsg
+            };
+        }
+    }
+
+    function stopScraping() {
+        if (isScraping && scrapingController) {
+            isScraping = false;
+            scrapingController.abort();
+            logToConsole('🛑 Scraping stopped by user', 'warning');
+        }
+    }
+
+    function finishScraping() {
+        isScraping = false;
+
+        // Update UI
+        document.getElementById('scrapeBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('resultsSection').classList.remove('hidden');
+        document.getElementById('downloadJsonBtn').disabled = false;
+        document.getElementById('downloadCsvBtn').disabled = false;
+        document.getElementById('downloadExcelBtn').disabled = false;
+
+        // Show final results
+        document.getElementById('finalResults').classList.remove('hidden');
+        document.getElementById('finalResults').textContent = JSON.stringify(scrapedData, null, 2);
+
+        logToConsole('🎉 SCRAPING COMPLETED!', 'success');
+        logToConsole(`📊 Results: ${scrapedData.successCount} ✅, ${scrapedData.errorCount} ❌`, 'success');
+
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function updateProgress(percentage) {
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+
+        progressFill.style.width = `${percentage}%`;
+        progressText.textContent = `${Math.round(percentage)}%`;
+    }
+
+    function updateStats() {
+        const statsDiv = document.getElementById('scrapingStats');
+        statsDiv.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${scrapedData.successCount}</div>
+                    <div class="stat-label">Success</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${scrapedData.errorCount}</div>
+                    <div class="stat-label">Errors</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${scrapedData.journals.length}</div>
+                    <div class="stat-label">Processed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${scrapedData.totalUrls}</div>
+                    <div class="stat-label">Total</div>
+                </div>
+            `;
+    }
+
+    function logToConsole(message, type = 'info') {
+        const logContainer = document.getElementById('scrapingLog');
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${type}`;
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function downloadJSON() {
+        if (!scrapedData) {
+            alert('No data to download!');
+            return;
+        }
+
+        const jsonString = JSON.stringify(scrapedData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = `journals-${timestamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function downloadCSV() {
+        if (!scrapedData) {
+            alert('No data to download!');
+            return;
+        }
+
+        const headers = [
+            'Cell', 'Sheet', 'Display Text', 'URL',
+            'Journal Title', 'Publisher', 'ISSN', 'Quartile', 'H-Index', 'SJR',
+            'Language', 'Country', 'Review Process', 'Processing Time',
+            'APC', 'Open Access', 'Official Website', 'Status'
+        ];
+
+        let csvContent = headers.join(',') + '\n';
+
+        scrapedData.journals.forEach(journal => {
+            const row = [
+                `"${journal.cell}"`,
+                `"${journal.sheet}"`,
+                `"${journal.displayText || ''}"`,
+                `"${journal.url}"`,
+                `"${journal.journalTitle || ''}"`,
+                `"${journal.publisher || ''}"`,
+                `"${journal.issn || ''}"`,
+                `"${journal.journalQuartile || ''}"`,
+                `"${journal.hIndex || ''}"`,
+                `"${journal.sjr || ''}"`,
+                `"${journal.publicationLanguage || ''}"`,
+                `"${journal.countryOfPublisher || ''}"`,
+                `"${journal.reviewProcess || ''}"`,
+                `"${journal.processingTime || ''}"`,
+                `"${journal.apc || ''}"`,
+                `"${journal.openAccess || ''}"`,
+                `"${journal.journalOfficialWebsite || ''}"`,
+                `"${journal.status}"`
+            ];
+            csvContent += row.join(',') + '\n';
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = `journals-${timestamp}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function downloadExcel() {
+        if (!scrapedData) {
+            alert('❌ Tidak ada data scraping untuk di-download sebagai Excel!');
+            return;
+        }
+
+        // Prepare data untuk Excel
+        const excelData = scrapedData.journals.map(journal => ({
+            'Journal Title': journal.journalTitle || '',
+            'Publisher': journal.publisher || '',
+            'ISSN': journal.issn || '',
+            'Journal Quartile': journal.journalQuartile || '',
+            'H-Index': journal.hIndex || '',
+            'SJR': journal.sjr || '',
+            'Publication Language': journal.publicationLanguage || '',
+            'Country of Publisher': journal.countryOfPublisher || '',
+            'Review Process': journal.reviewProcess || '',
+            'Processing Time': journal.processingTime || '',
+            'APC': journal.apc || '',
+            'Open Access': journal.openAccess || '',
+            'Official Website': journal.journalOfficialWebsite || '',
+            'Original URL': journal.url || '',
+            'Cell Reference': journal.cell || '',
+            'Sheet': journal.sheet || '',
+            'Status': journal.status || ''
+        }));
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+
+        // Create worksheet dari data
+        const ws = XLSX.utils.json_to_sheet(excelData);
+
+        // Set column widths
+        const colWidths = [
+            { wch: 30 }, // Journal Title
+            { wch: 40 }, // Publisher
+            { wch: 15 }, // ISSN
+            { wch: 15 }, // Journal Quartile
+            { wch: 10 }, // H-Index
+            { wch: 10 }, // SJR
+            { wch: 20 }, // Publication Language
+            { wch: 25 }, // Country of Publisher
+            { wch: 25 }, // Review Process
+            { wch: 20 }, // Processing Time
+            { wch: 20 }, // APC
+            { wch: 15 }, // Open Access
+            { wch: 40 }, // Official Website
+            { wch: 40 }, // Original URL
+            { wch: 12 }, // Cell Reference
+            { wch: 15 }, // Sheet
+            { wch: 10 }  // Status
+        ];
+        ws['!cols'] = colWidths;
+
+        // Add worksheet ke workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Journals Data');
+
+        // Create summary sheet
+        const summaryData = [
+            ['Journal Scraper - Summary Report'],
+            [''],
+            ['File Name:', scrapedData.fileName],
+            ['Scraped At:', new Date(scrapedData.scrapedAt).toLocaleString()],
+            ['Total URLs Processed:', scrapedData.totalUrls],
+            ['Successfully Scraped:', scrapedData.successCount],
+            ['Errors:', scrapedData.errorCount],
+            ['Success Rate:', `${((scrapedData.successCount / scrapedData.totalUrls) * 100).toFixed(2)}%`],
+            [''],
+            ['Scraping Settings:'],
+            ['Max URLs:', scrapedData.settings.maxUrls],
+            ['Delay (ms):', scrapedData.settings.delayMs],
+            ['Batch Size:', scrapedData.settings.batchSize],
+            [''],
+            ['Data Fields Included:'],
+            ['Journal Title, Publisher, ISSN, Journal Quartile, H-Index, SJR'],
+            ['Publication Language, Country of Publisher, Review Process'],
+            ['Processing Time, APC, Open Access, Official Website']
+        ];
+
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+
+        // Set column width untuk summary
+        wsSummary['!cols'] = [{ wch: 25 }, { wch: 30 }];
+
+        // Merge title row
+        if (!wsSummary['!merges']) wsSummary['!merges'] = [];
+        wsSummary['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } });
+
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+        // Generate Excel file dan download
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        XLSX.writeFile(wb, `journal-data-${timestamp}.xlsx`);
+
+        logToConsole(`📊 Excel file berhasil di-download!`, 'success');
+    }
+
+    function clearAll() {
+        // Reset UI
+        document.getElementById('fileInput').value = '';
+        document.getElementById('extractBtn').disabled = true;
+        document.getElementById('scrapeBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('downloadJsonBtn').disabled = true;
+        document.getElementById('downloadCsvBtn').disabled = true;
+        document.getElementById('downloadExcelBtn').disabled = true;
+
+        // Hide sections
+        document.getElementById('resultSection').classList.add('hidden');
+        document.getElementById('scrapingSection').classList.add('hidden');
+        document.getElementById('progressSection').classList.add('hidden');
+        document.getElementById('resultsSection').classList.add('hidden');
+
+        // Clear data
+        extractedData = null;
+        scrapedData = null;
+        isScraping = false;
+
+        // Reset progress
+        updateProgress(0);
+        document.getElementById('scrapingLog').innerHTML = '';
+        document.getElementById('finalResults').classList.add('hidden');
+
+        logToConsole('🧹 All cleared! Ready for new file.', 'info');
+    }
+</script>
+</body>
+</html>

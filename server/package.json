@@ -1,0 +1,15 @@
+{
+  "name": "journal-scraper-proxy",
+  "version": "1.0.0",
+  "description": "Local CORS Proxy for Journal Scraper",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev": "node proxy-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.6.7"
+  }
+}
