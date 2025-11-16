@@ -136,6 +136,113 @@ app.post('/bulk-proxy', async (req, res) => {
     });
 });
 
+// Simple website checking (optional)
+app.get('/check-website', async (req, res) => {
+    const { url } = req.query;
+
+    if (!url) {
+        return res.status(400).json({
+            error: 'URL parameter is required',
+            usage: '/check-website?url=ENCODED_URL'
+        });
+    }
+
+    try {
+        console.log(`🌐 Checking website: ${url}`);
+
+        const response = await fetch(url, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        const result = {
+            url: url,
+            status: response.status,
+            statusText: response.statusText,
+            accessible: response.ok,
+            timestamp: new Date().toISOString()
+        };
+
+        console.log(`✅ Website check: ${url} - HTTP ${response.status}`);
+        res.json(result);
+
+    } catch (error) {
+        console.error(`❌ Website check failed for ${url}:`, error.message);
+
+        res.json({
+            url: url,
+            accessible: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Bulk website checking (optional)
+app.post('/bulk-check-websites', async (req, res) => {
+    const { urls, delay = 1000 } = req.body;
+
+    if (!urls || !Array.isArray(urls)) {
+        return res.status(400).json({
+            error: 'URLs array is required in request body'
+        });
+    }
+
+    console.log(`🌐 Bulk checking ${urls.length} websites...`);
+
+    const results = [];
+
+    for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+
+        try {
+            console.log(`[${i + 1}/${urls.length}] Checking: ${url}`);
+
+            const response = await fetch(url, {
+                timeout: 15000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+
+            results.push({
+                url,
+                status: response.status,
+                statusText: response.statusText,
+                accessible: response.ok,
+                success: true,
+                index: i
+            });
+
+            console.log(`[${i + 1}/${urls.length}] ${response.ok ? '✅' : '❌'} ${url} (HTTP ${response.status})`);
+
+        } catch (error) {
+            console.error(`[${i + 1}/${urls.length}] ❌ Error: ${url} - ${error.message}`);
+            results.push({
+                url,
+                accessible: false,
+                error: error.message,
+                success: false,
+                index: i
+            });
+        }
+
+        // Delay antara requests
+        if (i < urls.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    res.json({
+        total: urls.length,
+        accessible: results.filter(r => r.accessible).length,
+        inaccessible: results.filter(r => !r.accessible).length,
+        results: results
+    });
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Server Error:', error);
@@ -149,7 +256,13 @@ app.use((error, req, res, next) => {
 app.use((req, res) => {
     res.status(404).json({
         error: 'Endpoint not found',
-        availableEndpoints: ['GET /proxy', 'POST /bulk-proxy', 'GET /health']
+        availableEndpoints: [
+            'GET /proxy',
+            'POST /bulk-proxy',
+            'GET /check-website',
+            'POST /bulk-check-websites',
+            'GET /health'
+        ]
     });
 });
 
@@ -162,6 +275,8 @@ app.listen(PORT, () => {
     console.log('🔗 Endpoints:');
     console.log('   GET  /proxy?url=URL');
     console.log('   POST /bulk-proxy');
+    console.log('   GET  /check-website?url=URL');
+    console.log('   POST /bulk-check-websites');
     console.log('   GET  /health');
     console.log('====================================');
 });

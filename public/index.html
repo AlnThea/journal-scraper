@@ -135,6 +135,16 @@
             transform: translateY(-2px);
         }
 
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
         .btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
@@ -211,6 +221,7 @@
         .log-error { color: #FC8181; }
         .log-warning { color: #F6E05E; }
         .log-info { color: #63B3ED; }
+        .log-website { color: #F687B3; }
 
         .stats {
             display: grid;
@@ -225,6 +236,22 @@
             padding: 20px;
             border-radius: 10px;
             text-align: center;
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+
+        .stat-card.info {
+            background: linear-gradient(135deg, #17a2b8, #138496);
         }
 
         .stat-number {
@@ -477,10 +504,14 @@
         <div id="resultsSection" class="section hidden">
             <h3>📊 5. Final Results</h3>
             <div class="controls">
+                <button onclick="checkAllWebsites()" id="checkWebsitesBtn" class="btn btn-info">Check All Websites</button>
                 <button onclick="downloadJSON()" id="downloadJsonBtn" class="btn btn-success" disabled>Download JSON</button>
                 <button onclick="downloadCSV()" id="downloadCsvBtn" class="btn btn-success" disabled>Download CSV</button>
                 <button onclick="downloadExcel()" id="downloadExcelBtn" class="btn btn-success" disabled>Download Excel</button>
             </div>
+
+            <div class="stats" id="finalStats"></div>
+
             <pre id="finalResults" class="hidden"></pre>
         </div>
     </div>
@@ -499,7 +530,8 @@
         maxUrls: 50,
         delayMs: 2000,
         batchSize: 2,
-        proxyUrl: 'http://localhost:3000/proxy?url='
+        proxyUrl: 'http://localhost:3000/proxy?url=',
+        checkWebsiteUrl: 'http://localhost:3000/check-website?url='
     };
 
     // Function untuk check CORS server status
@@ -748,6 +780,8 @@
             totalUrls: urlsToScrape.length,
             successCount: 0,
             errorCount: 0,
+            accessibleWebsites: 0,
+            inaccessibleWebsites: 0,
             settings: { ...scrapingSettings },
             journals: []
         };
@@ -786,6 +820,47 @@
         finishScraping();
     }
 
+    // Fungsi untuk mengecek status website
+    async function checkWebsiteAccessibility(url) {
+        if (!url || url === 'null' || url === 'undefined') {
+            return {
+                accessible: false,
+                error: 'URL tidak valid',
+                status: 'N/A'
+            };
+        }
+
+        try {
+            // Validasi URL
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            const targetUrl = scrapingSettings.checkWebsiteUrl + encodeURIComponent(url);
+
+            const response = await fetch(targetUrl, {
+                signal: scrapingController?.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            return result;
+
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+
+            return {
+                url: url,
+                accessible: false,
+                error: error.message,
+                status: 'Error'
+            };
+        }
+    }
+
     async function processUrl(urlInfo, index, total) {
         const progress = ((index + 1) / total) * 100;
         updateProgress(progress);
@@ -794,6 +869,28 @@
 
         try {
             const journalData = await scrapeJournalData(urlInfo.url);
+
+            // Check website accessibility jika ada official website
+            if (journalData.status === 'success' && journalData.journalOfficialWebsite) {
+                logToConsole(`🌐 Checking website: ${journalData.journalOfficialWebsite}`, 'website');
+
+                const websiteCheck = await checkWebsiteAccessibility(journalData.journalOfficialWebsite);
+                journalData.websiteAccessibility = websiteCheck;
+
+                if (websiteCheck.accessible) {
+                    scrapedData.accessibleWebsites++;
+                    logToConsole(`✅ Website accessible: HTTP ${websiteCheck.status}`, 'success');
+                } else {
+                    scrapedData.inaccessibleWebsites++;
+                    logToConsole(`❌ Website inaccessible: ${websiteCheck.error || websiteCheck.statusText}`, 'error');
+                }
+            } else if (journalData.status === 'success') {
+                journalData.websiteAccessibility = {
+                    accessible: false,
+                    error: 'No official website found',
+                    status: 'N/A'
+                };
+            }
 
             if (journalData.status === 'success') {
                 scrapedData.successCount++;
@@ -816,7 +913,12 @@
                 ...urlInfo,
                 status: 'error',
                 error: error.message,
-                scrapedAt: new Date().toISOString()
+                scrapedAt: new Date().toISOString(),
+                websiteAccessibility: {
+                    accessible: false,
+                    error: 'Scraping failed',
+                    status: 'N/A'
+                }
             });
         }
 
@@ -975,9 +1077,13 @@
         document.getElementById('scrapeBtn').disabled = false;
         document.getElementById('stopBtn').disabled = true;
         document.getElementById('resultsSection').classList.remove('hidden');
+        document.getElementById('checkWebsitesBtn').disabled = false;
         document.getElementById('downloadJsonBtn').disabled = false;
         document.getElementById('downloadCsvBtn').disabled = false;
         document.getElementById('downloadExcelBtn').disabled = false;
+
+        // Update final stats
+        updateFinalStats();
 
         // Show final results
         document.getElementById('finalResults').classList.remove('hidden');
@@ -985,8 +1091,68 @@
 
         logToConsole('🎉 SCRAPING COMPLETED!', 'success');
         logToConsole(`📊 Results: ${scrapedData.successCount} ✅, ${scrapedData.errorCount} ❌`, 'success');
+        logToConsole(`🌐 Websites: ${scrapedData.accessibleWebsites} accessible, ${scrapedData.inaccessibleWebsites} inaccessible`, 'success');
 
         document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Fungsi untuk bulk website checking saja
+    async function checkAllWebsites() {
+        if (!scrapedData || !scrapedData.journals.length) {
+            alert('No scraped data available!');
+            return;
+        }
+
+        const journalsWithWebsites = scrapedData.journals.filter(j =>
+            j.journalOfficialWebsite && j.status === 'success'
+        );
+
+        if (journalsWithWebsites.length === 0) {
+            alert('No official websites found in the scraped data!');
+            return;
+        }
+
+        // Reset counters
+        scrapedData.accessibleWebsites = 0;
+        scrapedData.inaccessibleWebsites = 0;
+
+        logToConsole(`🌐 Starting bulk website check for ${journalsWithWebsites.length} websites...`, 'warning');
+
+        document.getElementById('checkWebsitesBtn').disabled = true;
+
+        for (let i = 0; i < journalsWithWebsites.length; i++) {
+            const journal = journalsWithWebsites[i];
+
+            logToConsole(`[${i + 1}/${journalsWithWebsites.length}] Checking: ${journal.journalOfficialWebsite}`, 'website');
+
+            const websiteCheck = await checkWebsiteAccessibility(journal.journalOfficialWebsite);
+
+            // Update data yang ada
+            journal.websiteAccessibility = websiteCheck;
+
+            if (websiteCheck.accessible) {
+                scrapedData.accessibleWebsites++;
+                logToConsole(`✅ Accessible: HTTP ${websiteCheck.status}`, 'success');
+            } else {
+                scrapedData.inaccessibleWebsites++;
+                logToConsole(`❌ Inaccessible: ${websiteCheck.error || websiteCheck.statusText}`, 'error');
+            }
+
+            // Update progress
+            const progress = ((i + 1) / journalsWithWebsites.length) * 100;
+            updateProgress(progress);
+
+            // Delay
+            if (i < journalsWithWebsites.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        document.getElementById('checkWebsitesBtn').disabled = false;
+        updateFinalStats();
+
+        logToConsole(`🎉 Bulk website checking completed!`, 'success');
+        logToConsole(`🌐 Results: ${scrapedData.accessibleWebsites} accessible, ${scrapedData.inaccessibleWebsites} inaccessible`, 'success');
     }
 
     function updateProgress(percentage) {
@@ -1015,6 +1181,40 @@
                 <div class="stat-card">
                     <div class="stat-number">${scrapedData.totalUrls}</div>
                     <div class="stat-label">Total</div>
+                </div>
+            `;
+    }
+
+    function updateFinalStats() {
+        const statsDiv = document.getElementById('finalStats');
+        const totalWebsites = scrapedData.accessibleWebsites + scrapedData.inaccessibleWebsites;
+        const websiteSuccessRate = totalWebsites > 0 ? ((scrapedData.accessibleWebsites / totalWebsites) * 100).toFixed(1) : 0;
+        const scrapingSuccessRate = ((scrapedData.successCount / scrapedData.totalUrls) * 100).toFixed(1);
+
+        statsDiv.innerHTML = `
+                <div class="stat-card success">
+                    <div class="stat-number">${scrapedData.successCount}</div>
+                    <div class="stat-label">Scraping Success</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-number">${scrapedData.errorCount}</div>
+                    <div class="stat-label">Scraping Errors</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-number">${scrapedData.accessibleWebsites}</div>
+                    <div class="stat-label">Accessible Websites</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-number">${scrapedData.inaccessibleWebsites}</div>
+                    <div class="stat-label">Inaccessible Websites</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-number">${scrapingSuccessRate}%</div>
+                    <div class="stat-label">Scraping Success Rate</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-number">${websiteSuccessRate}%</div>
+                    <div class="stat-label">Website Access Rate</div>
                 </div>
             `;
     }
@@ -1058,12 +1258,15 @@
             'Cell', 'Sheet', 'Display Text', 'URL',
             'Journal Title', 'Publisher', 'ISSN', 'Quartile', 'H-Index', 'SJR',
             'Language', 'Country', 'Review Process', 'Processing Time',
-            'APC', 'Open Access', 'Official Website', 'Status'
+            'APC', 'Open Access', 'Official Website',
+            'Website Accessible', 'Website Status', 'Website Error',
+            'Status'
         ];
 
         let csvContent = headers.join(',') + '\n';
 
         scrapedData.journals.forEach(journal => {
+            const websiteAccess = journal.websiteAccessibility || {};
             const row = [
                 `"${journal.cell}"`,
                 `"${journal.sheet}"`,
@@ -1082,6 +1285,9 @@
                 `"${journal.apc || ''}"`,
                 `"${journal.openAccess || ''}"`,
                 `"${journal.journalOfficialWebsite || ''}"`,
+                `"${websiteAccess.accessible ? 'Yes' : 'No'}"`,
+                `"${websiteAccess.status || ''}"`,
+                `"${websiteAccess.error || ''}"`,
                 `"${journal.status}"`
             ];
             csvContent += row.join(',') + '\n';
@@ -1107,25 +1313,31 @@
         }
 
         // Prepare data untuk Excel
-        const excelData = scrapedData.journals.map(journal => ({
-            'Journal Title': journal.journalTitle || '',
-            'Publisher': journal.publisher || '',
-            'ISSN': journal.issn || '',
-            'Journal Quartile': journal.journalQuartile || '',
-            'H-Index': journal.hIndex || '',
-            'SJR': journal.sjr || '',
-            'Publication Language': journal.publicationLanguage || '',
-            'Country of Publisher': journal.countryOfPublisher || '',
-            'Review Process': journal.reviewProcess || '',
-            'Processing Time': journal.processingTime || '',
-            'APC': journal.apc || '',
-            'Open Access': journal.openAccess || '',
-            'Official Website': journal.journalOfficialWebsite || '',
-            'Original URL': journal.url || '',
-            'Cell Reference': journal.cell || '',
-            'Sheet': journal.sheet || '',
-            'Status': journal.status || ''
-        }));
+        const excelData = scrapedData.journals.map(journal => {
+            const websiteAccess = journal.websiteAccessibility || {};
+            return {
+                'Journal Title': journal.journalTitle || '',
+                'Publisher': journal.publisher || '',
+                'ISSN': journal.issn || '',
+                'Journal Quartile': journal.journalQuartile || '',
+                'H-Index': journal.hIndex || '',
+                'SJR': journal.sjr || '',
+                'Publication Language': journal.publicationLanguage || '',
+                'Country of Publisher': journal.countryOfPublisher || '',
+                'Review Process': journal.reviewProcess || '',
+                'Processing Time': journal.processingTime || '',
+                'APC': journal.apc || '',
+                'Open Access': journal.openAccess || '',
+                'Official Website': journal.journalOfficialWebsite || '',
+                'Website Accessible': websiteAccess.accessible ? 'Yes' : 'No',
+                'Website Status': websiteAccess.status || '',
+                'Website Error': websiteAccess.error || '',
+                'Original URL': journal.url || '',
+                'Cell Reference': journal.cell || '',
+                'Sheet': journal.sheet || '',
+                'Status': journal.status || ''
+            };
+        });
 
         // Create workbook
         const wb = XLSX.utils.book_new();
@@ -1148,6 +1360,9 @@
             { wch: 20 }, // APC
             { wch: 15 }, // Open Access
             { wch: 40 }, // Official Website
+            { wch: 15 }, // Website Accessible
+            { wch: 15 }, // Website Status
+            { wch: 30 }, // Website Error
             { wch: 40 }, // Original URL
             { wch: 12 }, // Cell Reference
             { wch: 15 }, // Sheet
@@ -1159,6 +1374,10 @@
         XLSX.utils.book_append_sheet(wb, ws, 'Journals Data');
 
         // Create summary sheet
+        const totalWebsites = scrapedData.accessibleWebsites + scrapedData.inaccessibleWebsites;
+        const websiteSuccessRate = totalWebsites > 0 ? ((scrapedData.accessibleWebsites / totalWebsites) * 100).toFixed(1) : 0;
+        const scrapingSuccessRate = ((scrapedData.successCount / scrapedData.totalUrls) * 100).toFixed(1);
+
         const summaryData = [
             ['Journal Scraper - Summary Report'],
             [''],
@@ -1167,7 +1386,13 @@
             ['Total URLs Processed:', scrapedData.totalUrls],
             ['Successfully Scraped:', scrapedData.successCount],
             ['Errors:', scrapedData.errorCount],
-            ['Success Rate:', `${((scrapedData.successCount / scrapedData.totalUrls) * 100).toFixed(2)}%`],
+            ['Success Rate:', `${scrapingSuccessRate}%`],
+            [''],
+            ['Website Accessibility:'],
+            ['Total Websites Found:', totalWebsites],
+            ['Accessible Websites:', scrapedData.accessibleWebsites],
+            ['Inaccessible Websites:', scrapedData.inaccessibleWebsites],
+            ['Website Access Rate:', `${websiteSuccessRate}%`],
             [''],
             ['Scraping Settings:'],
             ['Max URLs:', scrapedData.settings.maxUrls],
@@ -1177,7 +1402,8 @@
             ['Data Fields Included:'],
             ['Journal Title, Publisher, ISSN, Journal Quartile, H-Index, SJR'],
             ['Publication Language, Country of Publisher, Review Process'],
-            ['Processing Time, APC, Open Access, Official Website']
+            ['Processing Time, APC, Open Access, Official Website'],
+            ['Website Accessibility Status, Website HTTP Status, Website Errors']
         ];
 
         const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
@@ -1204,6 +1430,7 @@
         document.getElementById('extractBtn').disabled = true;
         document.getElementById('scrapeBtn').disabled = true;
         document.getElementById('stopBtn').disabled = true;
+        document.getElementById('checkWebsitesBtn').disabled = true;
         document.getElementById('downloadJsonBtn').disabled = true;
         document.getElementById('downloadCsvBtn').disabled = true;
         document.getElementById('downloadExcelBtn').disabled = true;
@@ -1223,6 +1450,7 @@
         updateProgress(0);
         document.getElementById('scrapingLog').innerHTML = '';
         document.getElementById('finalResults').classList.add('hidden');
+        document.getElementById('finalStats').innerHTML = '';
 
         logToConsole('🧹 All cleared! Ready for new file.', 'info');
     }
